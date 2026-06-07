@@ -353,7 +353,7 @@ body{background:#F7FBFF!important;}
 .teacher-visual img{
   height:116px!important;
   max-width:180px!important;
-  transform:translateX(0)!important;
+  transform:translateX(28px)!important;
 }
 .kids-visual img{height:116px!important;max-width:195px!important;}
 .offering-visual img{height:112px!important;max-width:180px!important;}
@@ -367,6 +367,9 @@ body{background:#F7FBFF!important;}
   .side-church-img{max-width:130px!important;margin-top:10px!important;}
 }
 
+/* v14: center teacher illustration inside the Teachers Check-In card */
+.quick-card.teacher .quick-visual{justify-content:center!important;}
+.quick-card.teacher .quick-visual img{transform:translateX(28px)!important;object-position:center center!important;}
 </style>
 </head>
 <body>
@@ -717,7 +720,7 @@ function printSingle(id){const s=students.find(x=>x.id===id);if(!s)return;const 
 .teacher-visual img{
   height:116px!important;
   max-width:180px!important;
-  transform:translateX(0)!important;
+  transform:translateX(28px)!important;
 }
 .kids-visual img{height:116px!important;max-width:195px!important;}
 .offering-visual img{height:112px!important;max-width:180px!important;}
@@ -731,6 +734,9 @@ function printSingle(id){const s=students.find(x=>x.id===id);if(!s)return;const 
   .side-church-img{max-width:130px!important;margin-top:10px!important;}
 }
 
+/* v14: center teacher illustration inside the Teachers Check-In card */
+.quick-card.teacher .quick-visual{justify-content:center!important;}
+.quick-card.teacher .quick-visual img{transform:translateX(28px)!important;object-position:center center!important;}
 </style></head><body><img src="${data}" width="180" height="180" style="border:4px solid #eee;border-radius:8px"><h2>${escapeHtml(s.nameKo)}</h2><p>${escapeHtml(s.nameEn)}</p><p style="font-size:12px;color:#888">${escapeHtml(s.grade)} · ${escapeHtml(s.id)}</p><br><button onclick="window.print()">인쇄</button></body></html>`);},100);}
 function printAll(){window.print();}
 function updateTeacherStats(){const week=getTeacherWeek(),wd=teacherAttendance[week]||{};let present=0;activeTeachers().forEach(t=>{if(wd[t.id]?.present)present++;});document.getElementById('t-total').textContent=present;document.getElementById('t-absent').textContent=activeTeachers().length-present;document.getElementById('t-rate').textContent=activeTeachers().length?Math.round(present/activeTeachers().length*100)+'%':'0%';document.getElementById('t-count').textContent=activeTeachers().length+'명';renderTeacherTodayList();}
@@ -819,7 +825,7 @@ function quickTeacherCode(id){const t=teachers.find(x=>x.id===id);if(!t)return;c
 .teacher-visual img{
   height:116px!important;
   max-width:180px!important;
-  transform:translateX(0)!important;
+  transform:translateX(28px)!important;
 }
 .kids-visual img{height:116px!important;max-width:195px!important;}
 .offering-visual img{height:112px!important;max-width:180px!important;}
@@ -833,6 +839,9 @@ function quickTeacherCode(id){const t=teachers.find(x=>x.id===id);if(!t)return;c
   .side-church-img{max-width:130px!important;margin-top:10px!important;}
 }
 
+/* v14: center teacher illustration inside the Teachers Check-In card */
+.quick-card.teacher .quick-visual{justify-content:center!important;}
+.quick-card.teacher .quick-visual img{transform:translateX(28px)!important;object-position:center center!important;}
 </style></head><body><img src="${data}" width="180" height="180" style="border:4px solid #eee;border-radius:8px"><h2>${escapeHtml(t.nameKo)}</h2><p>${escapeHtml(t.nameEn)}</p><p style="font-size:12px;color:#888">${escapeHtml(t.role||'')} · ${escapeHtml(t.id)}</p><br><button onclick="window.print()">인쇄</button></body></html>`);},100);}
 async function pullTeachers(){if(!scriptUrl){toast('Settings 탭에서 Script URL을 먼저 입력해주세요',false);return;}setSyncLoading('교사 데이터 불러오는 중...');try{const data=await apiGet({action:'getTeachers'});if(data.error)throw new Error(data.error);if(data.teachers&&data.teachers.length){teachers=data.teachers.map(x=>({...x,active:x.active!==false}));save();renderTeacherMgmt();updateTeacherStats();updateSyncStatus(true,'교사 '+teachers.length+'명 불러오기 완료');toast('교사 데이터를 불러왔습니다');}else{updateSyncStatus(true,'시트에 교사 데이터 없음');toast('시트에 교사 데이터가 없습니다',false,true);}}catch(e){updateSyncStatus(false);toast('교사 불러오기 실패: '+e.message,false);}}
 async function pushTeachers(){if(!adminMode){toast('관리자 로그인 후 저장할 수 있습니다',false);return;}if(!scriptUrl){toast('Settings 탭에서 Script URL을 먼저 입력해주세요',false);return;}setSyncLoading('교사 데이터 업로드 중...');try{const data=await apiPost({action:'saveTeachersBulk',teachers});if(data&&data.error)throw new Error(data.error);updateSyncStatus(true,'교사 '+teachers.length+'명 업로드 완료');toast('교사 데이터를 Google Sheets에 저장했습니다');}catch(e){updateSyncStatus(false);toast('교사 업로드 실패: '+e.message,false);}}
