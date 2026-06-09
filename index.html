@@ -538,7 +538,24 @@ body{background:#F7FBFF!important;}
   <div class="card admin-only">
     <div style="font-size:13px;font-weight:700;margin-bottom:12px">새 교사 등록</div>
     <div class="form-grid"><div class="form-row"><label>한국어 이름</label><input id="new-teacher-ko" placeholder="김선생"></div><div class="form-row"><label>English Name</label><input id="new-teacher-en" placeholder="Teacher Kim"></div></div>
-    <div class="form-grid"><div class="form-row"><label>담당반 / 역할</label><input id="new-teacher-role" placeholder="유치부 / 보조교사"></div><div class="form-row"><label>연락처</label><input id="new-teacher-phone" placeholder="214-000-0000"></div></div>
+    <div class="form-grid3">
+
+  <div class="form-row">
+    <label>담당반 / 역할</label>
+    <input id="new-teacher-role">
+  </div>
+
+  <div class="form-row">
+    <label>생년월일</label>
+    <input type="date" id="new-teacher-birthday">
+  </div>
+
+  <div class="form-row">
+    <label>연락처</label>
+    <input id="new-teacher-phone">
+  </div>
+
+</div>
     <button class="btn primary" onclick="addTeacher()" style="width:100%;margin-top:4px;justify-content:center">교사 등록하기</button>
     <div class="privacy-note">교사 QR/바코드에는 교사 ID만 들어갑니다.</div>
   </div>
@@ -586,7 +603,27 @@ body{background:#F7FBFF!important;}
 <script>
 const COLORS=['ca','cb','cc','cd','ce','cf'];let codeType='qr';let scriptUrl='';let secretKey='';let adminPin='1234';let adminMode=false;let scanner=null;let scannerOn=false;let editStudentId=null;
 let weeks=[];
-let teachers=[{id:'T001',nameKo:'이교사',nameEn:'Teacher Lee',role:'유치부',phone:'214-000-0000',active:true},{id:'T002',nameKo:'박교사',nameEn:'Teacher Park',role:'초등부 보조',phone:'469-000-0000',active:true}];
+let teachers=[
+{
+  id:'T001',
+  nameKo:'이교사',
+  nameEn:'Teacher Lee',
+  role:'유치부',
+  birthday:'1985-05-10',
+  phone:'214-000-0000',
+  active:true
+}
+];
+{
+  id:'T002',
+  nameKo:'박교사',
+  nameEn:'Teacher Park',
+  role:'초등부 보조',
+  birthday:'1990-08-25',
+  phone:'469-000-0000',
+  active:true
+}
+];
 let teacherAttendance={};
 let students=[{id:'S001',nameKo:'김민준',nameEn:'Min-Jun Kim',dob:'03/12/2017',grade:'2학년',gender:'남 (M)',phone:'214-123-4567',active:true},{id:'S002',nameKo:'이서연',nameEn:'Seo-Yeon Lee',dob:'07/25/2018',grade:'유치부 (Pre-K)',gender:'여 (F)',phone:'214-234-5678',active:true},{id:'S003',nameKo:'박도윤',nameEn:'Do-Yoon Park',dob:'11/05/2019',grade:'1학년',gender:'남 (M)',phone:'469-345-6789',active:true}];
 let attendance={};
@@ -756,8 +793,19 @@ function renderTeacherTodayList(){const week=getTeacherWeek(),wd=teacherAttendan
 function renderTeacherList(){const week=getTeacherWeek(),wd=teacherAttendance[week]||{},el=document.getElementById('teacher-attendance-list');if(!el)return;const list=activeTeachers();if(!list.length){el.innerHTML='<div style="padding:2rem;text-align:center;color:var(--ss-muted);font-size:13px">등록된 교사가 없습니다</div>';return;}el.innerHTML=`<table class="rtbl"><thead><tr><th style="width:140px">교사</th><th style="width:100px">역할</th><th style="width:55px">출석</th><th style="width:70px">시간</th><th style="width:78px">처리</th></tr></thead><tbody>${list.map((t,i)=>{const d=wd[t.id]||{present:false,time:null};return `<tr><td><div style="display:flex;align-items:center;gap:6px"><div class="avatar ${COLORS[i%COLORS.length]}" style="width:26px;height:26px;font-size:10px">${escapeHtml(t.nameKo[0]||'?')}</div><div><div style="font-size:12px;font-weight:700">${escapeHtml(t.nameKo)}</div><div style="font-size:10px;color:var(--ss-muted)">${escapeHtml(t.nameEn)}</div></div></div></td><td style="font-size:11px;color:var(--ss-muted)">${escapeHtml(t.role||'-')}</td><td><span class="badge ${d.present?'present':'absent'}">${d.present?'출석':'결석'}</span></td><td style="font-size:11px;color:var(--ss-muted)">${escapeHtml(d.time||'-')}</td><td>${!d.present?`<button class="btn sm primary" onclick="manualTeacherCheckIn('${t.id}','${week}')">출석</button>`:`<button class="btn sm danger" onclick="cancelTeacherCheckIn('${t.id}','${week}')">취소</button>`}</td></tr>`;}).join('')}</tbody></table>`;}
 function manualTeacherCheckIn(id,week){if(!teacherAttendance[week])teacherAttendance[week]={};teacherAttendance[week][id]={present:true,time:'수동입력'};save();toast('Teachers Check-In 처리 완료');updateTeacherStats();renderTeacherList();}
 function cancelTeacherCheckIn(id,week){if(teacherAttendance[week]?.[id])teacherAttendance[week][id].present=false;save();toast('Teachers Check-In 취소',false,true);updateTeacherStats();renderTeacherList();}
-function addTeacher(){if(!adminMode){toast('관리자 로그인 후 등록할 수 있습니다',false);return;}const ko=document.getElementById('new-teacher-ko').value.trim(),en=document.getElementById('new-teacher-en').value.trim(),role=document.getElementById('new-teacher-role').value.trim(),phone=document.getElementById('new-teacher-phone').value.trim();if(!ko||!en){toast('교사 이름을 입력해주세요',false);return;}const id=nextTeacherId();teachers.push({id,nameKo:ko,nameEn:en,role,phone,active:true});save();toast(ko+' 교사 등록 완료 ('+id+')');['new-teacher-ko','new-teacher-en','new-teacher-role','new-teacher-phone'].forEach(id=>document.getElementById(id).value='');renderTeacherMgmt();updateTeacherStats();}
-function renderTeacherMgmt(){const el=document.getElementById('teacher-mgmt-list');if(!el)return;document.getElementById('teacher-count').textContent='총 '+teachers.length+'명 / 활성 '+activeTeachers().length+'명';if(!teachers.length){el.innerHTML='<div style="text-align:center;color:var(--ss-muted);padding:1.5rem;font-size:13px">등록된 교사가 없습니다</div>';return;}el.innerHTML=teachers.map((t,i)=>{const inactive=t.active===false;return `<div class="student-row" style="${inactive?'opacity:.5':''}"><div class="avatar ${COLORS[i%COLORS.length]}">${escapeHtml(t.nameKo[0]||'?')}</div><div class="student-info"><div class="sname-ko">${escapeHtml(t.nameKo)} ${inactive?'<span class="badge absent">비활성</span>':''}</div><div class="sname-en">${escapeHtml(t.nameEn)}</div><div class="smeta">${escapeHtml(t.id)} · ${escapeHtml(t.role||'-')}</div></div><div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end"><div style="font-size:11px;color:var(--ss-muted)">${adminMode?escapeHtml(t.phone||'-'):'관리자만 연락처 표시'}</div><div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end"><button class="btn sm" onclick="quickTeacherCode('${t.id}')">QR</button>${adminMode?`<button class="btn sm" onclick="openTeacherEditModal('${t.id}')">수정</button><button class="btn sm warn" onclick="toggleTeacherActive('${t.id}')">${inactive?'활성':'비활성'}</button><button class="btn sm danger" onclick="removeTeacher('${t.id}')">삭제</button>`:''}</div></div></div>`;}).join('');}
+function addTeacher(){if(!adminMode){toast('관리자 로그인 후 등록할 수 있습니다',false);return;}const ko=document.getElementById('new-teacher-ko').value.trim(),en=document.getElementById('new-teacher-en').value.trim(),role=document.getElementById('new-teacher-role').value.trim(),phone=document.getElementById('new-teacher-phone').value.trim();if(!ko||!en){toast('교사 이름을 입력해주세요',false);return;}const id=nextTeacherId();teachers.push({
+  id: nextTeacherId(),
+  nameKo,
+  nameEn,
+  role,
+  birthday: document.getElementById('new-teacher-birthday').value,
+  phone,
+  active: true
+});save();toast(ko+' 교사 등록 완료 ('+id+')');['new-teacher-ko','new-teacher-en','new-teacher-role','new-teacher-phone'].forEach(id=>document.getElementById(id).value='');renderTeacherMgmt();updateTeacherStats();}
+function renderTeacherMgmt(){const el=document.getElementById('teacher-mgmt-list');if(!el)return;document.getElementById('teacher-count').textContent='총 '+teachers.length+'명 / 활성 '+activeTeachers().length+'명';if(!teachers.length){el.innerHTML='<div style="text-align:center;color:var(--ss-muted);padding:1.5rem;font-size:13px">등록된 교사가 없습니다</div>';return;}el.innerHTML=teachers.map((t,i)=>{const inactive=t.active===false;return `<div class="student-row" style="${inactive?'opacity:.5':''}"><div class="avatar ${COLORS[i%COLORS.length]}">${escapeHtml(t.nameKo[0]||'?')}</div><div class="student-info"><div class="sname-ko">${escapeHtml(t.nameKo)} ${inactive?'<span class="badge absent">비활성</span>':''}</div><div class="sname-en">${escapeHtml(t.nameEn)}</div><div class="smeta">
+  ${escapeHtml(t.id)} · ${escapeHtml(t.role||'-')}
+  ${t.birthday ? ' · 🎂 ' + escapeHtml(t.birthday) : ''}
+</div></div><div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end"><div style="font-size:11px;color:var(--ss-muted)">${adminMode?escapeHtml(t.phone||'-'):'관리자만 연락처 표시'}</div><div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end"><button class="btn sm" onclick="quickTeacherCode('${t.id}')">QR</button>${adminMode?`<button class="btn sm" onclick="openTeacherEditModal('${t.id}')">수정</button><button class="btn sm warn" onclick="toggleTeacherActive('${t.id}')">${inactive?'활성':'비활성'}</button><button class="btn sm danger" onclick="removeTeacher('${t.id}')">삭제</button>`:''}</div></div></div>`;}).join('');}
 function toggleTeacherActive(id){if(!adminMode){toast('관리자 로그인 후 변경할 수 있습니다',false);return;}const t=teachers.find(x=>x.id===id);if(!t)return;t.active=t.active===false;save();renderTeacherMgmt();updateTeacherStats();toast(t.active?'교사 활성화':'교사 비활성화',true,!t.active);}
 function removeTeacher(id){if(!adminMode){toast('관리자 로그인 후 삭제할 수 있습니다',false);return;}if(!confirm('정말 삭제할까요? 출석 기록은 유지됩니다.'))return;teachers=teachers.filter(t=>t.id!==id);save();renderTeacherMgmt();updateTeacherStats();toast('교사 삭제됨',false,true);}
 function openTeacherEditModal(id){if(!adminMode){toast('관리자 로그인 후 수정할 수 있습니다',false);return;}const t=teachers.find(x=>x.id===id);if(!t)return;editStudentId=id;document.getElementById('modal-title').textContent='교사 정보 수정';document.getElementById('modal-save-btn').setAttribute('onclick','saveTeacherEdit()');document.getElementById('edit-form').innerHTML=`<div class="form-grid"><div class="form-row"><label>한국어 이름</label><input id="edit-ko" value="${escapeHtml(t.nameKo)}"></div><div class="form-row"><label>English Name</label><input id="edit-en" value="${escapeHtml(t.nameEn)}"></div></div><div class="form-grid"><div class="form-row"><label>담당반 / 역할</label><input id="edit-role" value="${escapeHtml(t.role||'')}"></div><div class="form-row"><label>연락처</label><input id="edit-phone" value="${escapeHtml(t.phone||'')}"></div></div>`;document.getElementById('student-modal').style.display='flex';}
