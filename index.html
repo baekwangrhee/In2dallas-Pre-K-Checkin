@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>IN2 Dallas Pre-K Check-In v19</title>
 <meta name="theme-color" content="#0B5DC4">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js">ensureQueueBadge();updateQueueBadge(loadQueue().length);flushQueue();
+</script>
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
 <!-- ZXing: 카메라 QR/바코드 스캔 (HTTPS 없이도 동작) -->
 <script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
@@ -529,6 +530,13 @@ let camStream=null;
 let codeReader=null;
 let camActive=false;
 
+// ─────────────────────────────────────────
+// OFFLINE QUEUE / SAFE SYNC
+// ─────────────────────────────────────────
+const PENDING_QUEUE_KEY='in2_pending_queue_v20';
+let queueFlushing=false;
+
+
 let students=[
   {id:'S001',nameKo:'김민준',nameEn:'Min-Jun Kim',dob:'03/12/2018',gender:'남 (M)',grade:'유치부 (Pre-K)',parentName:'김부모',parentPhone:'214-123-4567',parentEmail:'kim@email.com',address:'1234 Main St Dallas',allergyYn:'없음',allergyDetail:'',photoConsent:true,noToys:true,teacherNote:'',active:true},
   {id:'S002',nameKo:'이서연',nameEn:'Seo-Yeon Lee',dob:'07/25/2018',gender:'여 (F)',grade:'유치부 (Pre-K)',parentName:'이부모',parentPhone:'214-234-5678',parentEmail:'lee@email.com',address:'',allergyYn:'있음',allergyDetail:'견과류',photoConsent:true,noToys:false,teacherNote:'',active:true},
@@ -656,7 +664,7 @@ function applyAdmin(){
   document.querySelectorAll('.admin-only').forEach(el=>el.style.display=adminMode?'block':'none');
   document.getElementById('kids-admin-note').style.display=adminMode?'none':'block';
   document.getElementById('teacher-admin-note').style.display=adminMode?'none':'block';
-  renderKidsList();renderTeachersList();
+  renderKidsList();renderTeachersList();renderTodayKids();
 }
 function saveSecuritySettings(){
   const pin=document.getElementById('pin-inp').value.trim();
@@ -680,10 +688,75 @@ async function apiGet(params){
 }
 async function apiPost(body){
   if(!scriptUrl)throw new Error('Script URL 없음');
-  body.secret=secretKey;
-  const res=await fetch(scriptUrl,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(body)});
-  return await res.json();
+  const payload={...body,secret:secretKey};
+  const res=await fetch(scriptUrl,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(payload)});
+  if(!res.ok)throw new Error('HTTP '+res.status);
+  const data=await res.json();
+  if(data&&data.error)throw new Error(data.error);
+  return data;
 }
+
+function loadQueue(){
+  try{return JSON.parse(localStorage.getItem(PENDING_QUEUE_KEY)||'[]');}catch(e){return [];}
+}
+function saveQueue(q){
+  localStorage.setItem(PENDING_QUEUE_KEY,JSON.stringify(q));
+  updateQueueBadge(q.length);
+}
+function makeEventId(prefix='evt'){
+  return prefix+'_'+Date.now()+'_'+Math.random().toString(36).slice(2,9);
+}
+function enqueueApi(body,queueKey=''){
+  const q=loadQueue();
+  const item={body:{...body},queueKey,queuedAt:new Date().toISOString(),attempts:0};
+  if(queueKey){
+    const pos=q.findIndex(x=>x.queueKey===queueKey);
+    if(pos>=0)q[pos]=item; else q.push(item);
+  }else q.push(item);
+  saveQueue(q);
+}
+function ensureQueueBadge(){
+  let b=document.getElementById('queue-badge');
+  if(b)return b;
+  const sync=document.querySelector('.sync-bar');
+  if(!sync)return null;
+  b=document.createElement('span');
+  b.id='queue-badge';
+  b.style.cssText='font-size:11px;font-weight:800;padding:4px 8px;border-radius:999px;background:#DCFCE7;color:#166534;white-space:nowrap';
+  const btn=document.getElementById('admin-btn');
+  if(btn)sync.insertBefore(b,btn);else sync.appendChild(b);
+  return b;
+}
+function updateQueueBadge(n){
+  const b=ensureQueueBadge();if(!b)return;
+  if(n>0){b.textContent='🟡 전송 대기 '+n+'건';b.style.background='#FEF3C7';b.style.color='#92400E';}
+  else{b.textContent='🟢 모두 저장됨';b.style.background='#DCFCE7';b.style.color='#166534';}
+}
+async function flushQueue(){
+  if(queueFlushing||!navigator.onLine||!scriptUrl)return;
+  const batch=loadQueue();if(!batch.length){updateQueueBadge(0);return;}
+  queueFlushing=true;
+  // Remove this batch first. Anything queued while sending stays in localStorage.
+  saveQueue([]);
+  const failed=[];
+  for(const item of batch){
+    try{await apiPost(item.body);}catch(e){item.attempts=(item.attempts||0)+1;item.lastError=e.message;failed.push(item);}
+  }
+  const newlyQueued=loadQueue();
+  saveQueue(failed.concat(newlyQueued));
+  queueFlushing=false;
+  if(loadQueue().length&&navigator.onLine)setTimeout(flushQueue,800);
+}
+function queueAttendanceSnapshot(week){
+  enqueueApi({action:'saveAttendance',week,records:attendance[week]||{}},'attendance:'+week);
+  flushQueue();
+}
+function queueTeacherAttendanceSnapshot(week){
+  enqueueApi({action:'saveTeacherAttendance',week,records:teacherAtt[week]||{}},'teacherAttendance:'+week);
+  flushQueue();
+}
+window.addEventListener('online',flushQueue);
+setInterval(flushQueue,30000);
 
 // ─────────────────────────────────────────
 // SYNC
@@ -944,7 +1017,7 @@ function kidCheckIn(){
   }else{
     toast(s.nameKo+' 이미 Check Out 완료',false,true);
   }
-  save();inp.value='';updateKidStats();renderDash();
+  save();queueAttendanceSnapshot(week);inp.value='';updateKidStats();renderDash();
 }
 
 function teacherCheckIn(){
@@ -962,7 +1035,7 @@ function teacherCheckIn(){
     current.checkOut=now12();if(!current.checkIn)current.checkIn=current.time||'';teacherAtt[week][t.id]=current;
     showResult(res,'ok','✓ '+t.nameKo+' Check Out 완료 — '+current.checkOut);toast(t.nameKo+' Check Out ✓');
   }else{toast(t.nameKo+' 이미 Check Out 완료',false,true);}
-  save();inp.value='';updateTeacherStats();renderTeacherList();renderDash();
+  save();queueTeacherAttendanceSnapshot(week);inp.value='';updateTeacherStats();renderTeacherList();renderDash();
 }
 
 function showResult(el,type,msg){
@@ -999,21 +1072,84 @@ function renderTodayKids(){
         <div class="pname">${esc(s.nameKo)}${allergyBadge}</div>
         <div class="pname-en">${esc(s.nameEn)} · ${esc(s.grade)} · IN ${esc(d.checkIn||d.time||'-')} · OUT ${esc(d.checkOut||'-')}</div>
       </div>
-      <div style="display:flex;align-items:center;gap:4px">
-        <span style="font-size:12px;color:var(--muted)">$</span>
-        <input class="offering-inp" type="number" value="${parseFloat(d.offering||0).toFixed(2)}" min="0" step="0.25" onchange="setOffering('${s.id}',this.value)">
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+        <span style="font-size:13px;font-weight:800;color:#166534">${fmtMoney(d.offering||0)}</span>
+        ${adminMode?`<button class="btn sm" onclick="openOfferingEdit('${s.id}')">헌금 수정</button>`:''}
       </div>
     </div>`;
   }).join('');
 }
 
 function setOffering(id,val){
+  if(!adminMode){toast('헌금 수정은 관리자 로그인 후 가능합니다',false);renderTodayKids();return;}
   const week=getWeek();
   if(!attendance[week])attendance[week]={};
   if(!attendance[week][id])attendance[week][id]={present:false,offering:0,time:null,checkIn:'',checkOut:''};
   attendance[week][id].offering=parseFloat(val)||0;
-  save();updateKidStats();renderDash();
+  save();queueAttendanceSnapshot(week);updateKidStats();renderDash();
 }
+
+function openOfferingEdit(studentId){
+  if(!adminMode){toast('관리자 로그인 후 수정할 수 있습니다',false);return;}
+  const week=getWeek(),s=students.find(x=>x.id===studentId);if(!s)return;
+  const d=(attendance[week]||{})[studentId]||{};
+  const current=parseFloat(d.offering||0)||0;
+  document.getElementById('modal-title').textContent='헌금 수정 — '+s.nameKo;
+  document.getElementById('modal-body').innerHTML=`
+    <div class="field"><label>헌금 고유번호</label><input value="${esc(s.parentOfferingId||'-')}" disabled></div>
+    <div class="form-grid">
+      <div class="field"><label>현재 금액</label><input value="${current.toFixed(2)}" disabled></div>
+      <div class="field"><label>새 금액 *</label><input id="off-new-amount" type="number" min="0" step="0.25" value="${current.toFixed(2)}"></div>
+    </div>
+    <div class="field"><label>수정 사유 ${current>0?'*':'(최초 입력 시 선택)'}</label><input id="off-reason" placeholder="예: 금액 오입력 / 중복 입력"></div>
+    <div class="field"><label>수정자 이름 *</label><input id="off-admin-name" placeholder="관리자 이름"></div>
+    <div class="note">기존 기록을 삭제하지 않고 OfferingLog에 CREATE / CORRECTION / VOID 이력이 남습니다.</div>`;
+  const saveBtn=document.getElementById('modal-save');
+  saveBtn.textContent='저장';
+  saveBtn.onclick=()=>saveOfferingEdit(studentId);
+  document.getElementById('edit-modal').classList.add('open');
+}
+
+function saveOfferingEdit(studentId){
+  if(!adminMode){toast('관리자 권한이 필요합니다',false);return;}
+  const week=getWeek(),s=students.find(x=>x.id===studentId);if(!s)return;
+  if(!attendance[week])attendance[week]={};
+  if(!attendance[week][studentId])attendance[week][studentId]={present:false,offering:0,time:null,checkIn:'',checkOut:''};
+  const d=attendance[week][studentId];
+  const oldAmount=parseFloat(d.offering||0)||0;
+  const newAmount=parseFloat(document.getElementById('off-new-amount').value||0)||0;
+  const reason=document.getElementById('off-reason').value.trim();
+  const changedBy=document.getElementById('off-admin-name').value.trim();
+  if(!changedBy){toast('수정자 이름을 입력하세요',false);return;}
+  if(oldAmount>0 && newAmount!==oldAmount && !reason){toast('정정/취소 사유를 입력하세요',false);return;}
+  if(newAmount===oldAmount){closeModal();toast('변경된 금액이 없습니다',false,true);return;}
+
+  d.offering=newAmount;
+  attendance[week][studentId]=d;
+  save();
+
+  // 최초 입력은 현재 상태 저장이 CREATE 로그를 만들고,
+  // 기존 금액 변경/취소는 별도 감사 이벤트로 기록합니다.
+  queueAttendanceSnapshot(week);
+  if(oldAmount>0){
+    const action=newAmount===0?'offeringVoid':'offeringCorrection';
+    enqueueApi({
+      action,
+      eventId:makeEventId('off'),
+      week,
+      studentId,
+      recordId:makeOfferingRecordId(week,studentId),
+      originalAmount:oldAmount,
+      newAmount,
+      reason,
+      changedBy,
+      changedAt:new Date().toISOString()
+    });
+    flushQueue();
+  }
+  closeModal();updateKidStats();renderDash();toast(newAmount===0?'헌금 취소 기록 완료':'헌금 수정 완료');
+}
+function makeOfferingRecordId(week,studentId){return 'OFR-'+String(week).replace(/[^0-9]/g,'')+'-'+studentId;}
 
 function updateTeacherStats(){
   const week=getWeek('tscan-week'),wd=teacherAtt[week]||{};
@@ -1497,6 +1633,9 @@ updateTeacherStats();
 renderKidsList();
 renderTeachersList();
 renderDash();
+ensureQueueBadge();
+updateQueueBadge(loadQueue().length);
+flushQueue();
 </script>
 </body>
 </html>
